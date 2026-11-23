@@ -1,40 +1,65 @@
-using System;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
+/// <summary>
+/// Crea parelles de canonades a intervals regulars mentre es juga.
+/// Col·loca la canonada de dalt i la de baix perquè el pas tingui sempre la mida "gapSize".
+/// </summary>
 public class PipeSpawner : MonoBehaviour
 {
-    public float timeToSpawn = 3;
+    [Tooltip("Segons entre canonades")]
+    public float timeToSpawn = 1.6f;
+    [Tooltip("Alçada del forat entre canonades (unitats)")]
+    public float gapSize = 2.7f;
     public GameObject pipePrefab;
     public Transform spawnTop;
     public Transform spawnBottom;
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-   
+
+    private float timer;
+
     void Start()
     {
-        InvokeRepeating("CreateNewPipe",0, timeToSpawn);   
+        timer = timeToSpawn * 0.7f; // la primera canonada surt aviat
     }
-    
-    // Update is called once per frame
+
     void Update()
     {
-        
+        GameManager gm = GameManager.Instance;
+        if (gm == null || !gm.IsPlaying) return;
+
+        timer += Time.deltaTime;
+        if (timer >= timeToSpawn)
+        {
+            timer -= timeToSpawn;
+            CreateNewPipe();
+        }
     }
 
     void CreateNewPipe()
     {
-        float randomY = Random.Range(spawnBottom.position.y, spawnTop.position.y);
-        Vector3 newPos = new Vector3(spawnTop.position.x, randomY, spawnTop.position.z);
-        GameObject o = Instantiate(pipePrefab, newPos, Quaternion.identity);
-        o.transform.parent = transform;
+        // Centre del forat: entre spawnBottom i spawnTop, limitat perquè quedi dins la pantalla
+        Camera cam = Camera.main;
+        float camTop = cam.transform.position.y + cam.orthographicSize;
+        float camBottom = cam.transform.position.y - cam.orthographicSize;
+        float minY = Mathf.Max(spawnBottom.position.y, camBottom + gapSize * 0.5f + 1.0f);
+        float maxY = Mathf.Min(spawnTop.position.y, camTop - gapSize * 0.5f - 0.6f);
+        if (minY > maxY) minY = maxY = (minY + maxY) * 0.5f;
+        float gapCenter = Random.Range(minY, maxY);
 
-    }
+        Vector3 pos = new Vector3(spawnTop.position.x, 0f, spawnTop.position.z);
+        GameObject o = Instantiate(pipePrefab, pos, Quaternion.identity, transform);
 
-    private void OnTriggerEnter2D(Collider2D other)
-    {
-        if (other.gameObject.tag == "PIPE")
+        // Ajustar cada tub (els que tenen PipeCollider) segons els límits reals del seu collider
+        Physics2D.SyncTransforms();
+        foreach (PipeCollider part in o.GetComponentsInChildren<PipeCollider>())
         {
-            Destroy(other.gameObject.transform.parent.gameObject);
+            Collider2D col = part.GetComponent<Collider2D>();
+            if (col == null) continue;
+            Bounds b = col.bounds;
+            float delta = b.center.y > 0f
+                ? (gapCenter + gapSize * 0.5f) - b.min.y   // tub de dalt: la seva vora inferior al límit superior del forat
+                : (gapCenter - gapSize * 0.5f) - b.max.y;  // tub de baix: la seva vora superior al límit inferior del forat
+            part.transform.position += Vector3.up * delta;
         }
     }
 }

@@ -1,34 +1,33 @@
-using System;
 using UnityEngine;
 
+/// <summary>
+/// Parella de canonades: es mou a velocitat constant (unitats/segon, independent dels fps)
+/// i suma exactament un punt quan el seu centre supera l'ocell.
+/// </summary>
 public class Pipe : MonoBehaviour
 {
-    private GameObject gm;
-    public float speed;
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
+    private Transform player;
+    private bool scored;
+
     void Start()
     {
-        gm = GameObject.FindGameObjectWithTag("GameController");
+        GameObject p = GameObject.FindGameObjectWithTag("Player");
+        if (p != null) player = p.transform;
     }
 
-    // Update is called once per frame
     void Update()
     {
-        
-    }
+        GameManager gm = GameManager.Instance;
+        if (gm == null || !gm.IsPlaying) return; // en acabar la partida tot queda aturat
 
-    private void FixedUpdate()
-    {
-        Vector3 pos = GetComponent<Transform>().position;
-        pos.x -= speed;
-        GetComponent<Transform>().position = pos;
-    }
+        transform.position += Vector3.left * gm.pipeSpeed * Time.deltaTime;
 
-    private void OnTriggerEnter2D(Collider2D other)
-    {
-        if (other.tag == "Player")
+        if (!scored && player != null && transform.position.x < player.position.x)
         {
-            gm.GetComponent<GameManager>().AddScore(1);
+            scored = true;
+            gm.AddScore(1);
         }
+
+        if (transform.position.x < -15f) Destroy(gameObject);
     }
 }
